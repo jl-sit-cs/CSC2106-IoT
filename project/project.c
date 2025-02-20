@@ -1,11 +1,12 @@
  #include "pico/stdlib.h"
  #include <stdio.h>
+ #include <math.h>
  
  #define DT_PIN 2  // Data pin
  #define SCK_PIN 3 // Clock pin
  
  #define CALIBRATION_FACTOR 1000 // Calibration factor
- #define NUM_ZERO_READINGS 10
+ #define NUM_ZERO_READINGS 100
  
  // Function to read raw data from HX711
  int32_t hx711_read(void) {
@@ -42,7 +43,7 @@
     int32_t sum = 0;
     for (int i = 0; i < NUM_ZERO_READINGS; i++) {
         sum += hx711_read();
-        sleep_ms(50);  // Wait a bit between readings
+        sleep_ms(100);  // Wait a bit between readings
     }
     return sum / NUM_ZERO_READINGS;  // Average value
 }
@@ -55,7 +56,7 @@
      gpio_init(SCK_PIN);
      gpio_set_dir(SCK_PIN, GPIO_OUT);
 
-     int32_t zero_offset = calibrate_zero_offset();
+    int32_t zero_offset = calibrate_zero_offset();
     printf("Zero Offset: %ld\n", zero_offset);
  
     printf("HX711 Initialized!\n");
@@ -66,7 +67,10 @@
         // Subtract the zero offset and apply the calibration factor
         float weight = (float)(raw_value - zero_offset) / CALIBRATION_FACTOR;
 
-        printf("Weight: %.2f grams\n", weight);
+        int rounded_weight = (int)round(weight);
+
+        printf("Weight: %d grams\n", rounded_weight);
         sleep_ms(500);
     }
  }
+ 
