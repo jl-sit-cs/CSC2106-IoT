@@ -4,6 +4,9 @@
  #define DT_PIN 2  // Data pin
  #define SCK_PIN 3 // Clock pin
  
+ #define CALIBRATION_FACTOR 1000 // Calibration factor
+ #define NUM_ZERO_READINGS 10
+ 
  // Function to read raw data from HX711
  int32_t hx711_read(void) {
      int32_t value = 0;
@@ -34,6 +37,15 @@
  
      return value;
  }
+
+ int32_t calibrate_zero_offset(void) {
+    int32_t sum = 0;
+    for (int i = 0; i < NUM_ZERO_READINGS; i++) {
+        sum += hx711_read();
+        sleep_ms(50);  // Wait a bit between readings
+    }
+    return sum / NUM_ZERO_READINGS;  // Average value
+}
  
  int main() {
      stdio_init_all();
@@ -42,14 +54,19 @@
  
      gpio_init(SCK_PIN);
      gpio_set_dir(SCK_PIN, GPIO_OUT);
+
+     int32_t zero_offset = calibrate_zero_offset();
+    printf("Zero Offset: %ld\n", zero_offset);
  
     printf("HX711 Initialized!\n");
  
-     while (1) {
-         int32_t raw_value = hx711_read();
+    while (1) {
+        int32_t raw_value = hx711_read();
 
-         printf("Raw Value: %ld\n", raw_value);
-         sleep_ms(500);
-     }
+        // Subtract the zero offset and apply the calibration factor
+        float weight = (float)(raw_value - zero_offset) / CALIBRATION_FACTOR;
+
+        printf("Weight: %.2f grams\n", weight);
+        sleep_ms(500);
+    }
  }
- 
