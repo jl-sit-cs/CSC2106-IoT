@@ -47,16 +47,12 @@ add_executable(MQTT-Testing MQTT-Testing.c )
 pico_set_program_name(MQTT-Testing "MQTT-Testing")
 pico_set_program_version(MQTT-Testing "0.1")
 
-# Generate PIO header
-
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(MQTT-Testing 1)
 pico_enable_stdio_usb(MQTT-Testing 1)
 
 # Add the standard library to the build
 target_link_libraries(MQTT-Testing
-    # pico_cyw43_arch_lwip_poll
-    
     pico_stdlib
     pico_lwip_mbedtls
     pico_mbedtls

@@ -21,12 +21,12 @@
 
 #define DEBUG_printf printf
 
-#define MQTT_SERVER_HOST ""  // Replace with your laptop's IP
+#define MQTT_SERVER_HOST "192.168.137.1"  // Replace with your laptop's IP
 #define MQTT_SERVER_PORT 1883
 #define MQTT_TLS 0
 
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "Cakemander"
+#define WIFI_PASSWORD "9dY62$99"
 
 typedef struct MQTT_CLIENT_T_ {
     ip_addr_t remote_addr;
@@ -52,7 +52,7 @@ static MQTT_CLIENT_T* mqtt_client_init(void) {
 
 // Set static IP for local MQTT broker
 void set_mqtt_server_ip(MQTT_CLIENT_T *state) {
-    IP4_ADDR(&state->remote_addr, 172, 20, 10, 12);  // Replace with your laptop's IP
+    IP4_ADDR(&state->remote_addr, 192, 168, 137, 1);  // Replace with your laptop's IP
 }
 
 u32_t data_in = 0;
@@ -302,12 +302,12 @@ int main() {
     int rounded_weight = (int)round(weight);
 
     printf("Weight: %d grams\n", rounded_weight);
-    int weight_difference = (previous_weight == -1) ? 0 : rounded_weight - previous_weight;
 
     if (previous_weight == -1 || abs(rounded_weight - previous_weight) >= 5) {
         // Prepare the message to send the weight to the MQTT broker
         char weight_message[128];
-        sprintf(weight_message, "{\"weight\":%d}", rounded_weight);
+
+        sprintf(weight_message, "{\"weight\":%d}", abs(rounded_weight - previous_weight));
 
         // Publish the weight value to the MQTT broker
         cyw43_arch_lwip_begin();
@@ -317,7 +317,7 @@ int main() {
         if (err != ERR_OK) {
             DEBUG_printf("Failed to publish weight: err %d\n", err);
         } else {
-            DEBUG_printf("Weight %d grams published successfully.\n", weight_difference);
+            DEBUG_printf("Weight %d grams published successfully.\n", rounded_weight);
         }
 
         // Update the previous weight to the current rounded weight
