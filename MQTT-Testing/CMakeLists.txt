@@ -48,7 +48,6 @@ pico_set_program_name(MQTT-Testing "MQTT-Testing")
 pico_set_program_version(MQTT-Testing "0.1")
 
 # Generate PIO header
-pico_generate_pio_header(MQTT-Testing ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(MQTT-Testing 1)
