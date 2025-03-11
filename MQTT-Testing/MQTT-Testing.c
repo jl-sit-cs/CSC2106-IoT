@@ -17,16 +17,21 @@
 #define SCK_PIN 3 // Clock pin
 
 #define CALIBRATION_FACTOR 1000 // Calibration factor
- #define NUM_ZERO_READINGS 100
+#define NUM_ZERO_READINGS 100
 
 #define DEBUG_printf printf
 
-#define MQTT_SERVER_HOST "192.168.137.1"  // Replace with your laptop's IP
+// MQTT server configuration
+#define MQTT_SERVER_HOST ""  // Replace with your laptop's IP
 #define MQTT_SERVER_PORT 1883
-#define MQTT_TLS 0
+#define MQTT_TLS 1
+#define MQTT_CLIENT_ID "PicoW"
+#define MQTT_USER "" //Replace with the dashboard pass
+#define MQTT_PASS "" //Replace with the dashboard pass
 
-#define WIFI_SSID "Cakemander"
-#define WIFI_PASSWORD "9dY62$99"
+// Wi-Fi configuration
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 typedef struct MQTT_CLIENT_T_ {
     ip_addr_t remote_addr;
@@ -52,7 +57,7 @@ static MQTT_CLIENT_T* mqtt_client_init(void) {
 
 // Set static IP for local MQTT broker
 void set_mqtt_server_ip(MQTT_CLIENT_T *state) {
-    IP4_ADDR(&state->remote_addr, 192, 168, 137, 1);  // Replace with your laptop's IP
+    IP4_ADDR(&state->remote_addr, , , , );  // Replace with your laptop's IP
 }
 
 u32_t data_in = 0;
@@ -175,11 +180,13 @@ err_t mqtt_test_connect(MQTT_CLIENT_T *state) {
     memset(&ci, 0, sizeof(ci));
 
     ci.client_id = "PicoW";
-    ci.client_user = NULL;
-    ci.client_pass = NULL;
+    ci.client_user = MQTT_USER;
+    ci.client_pass = MQTT_PASS;
     ci.keep_alive = 60;
 
-    err = mqtt_client_connect(state->mqtt_client, &(state->remote_addr), MQTT_SERVER_PORT, mqtt_connection_cb, state, &ci);
+    err = mqtt_client_connect(state->mqtt_client, 
+        &(state->remote_addr), MQTT_SERVER_PORT, 
+        mqtt_connection_cb, state, &ci);
     if (err != ERR_OK) {
         DEBUG_printf("mqtt_connect return %d\n", err);
     }
@@ -301,9 +308,9 @@ int main() {
 
     int rounded_weight = (int)round(weight);
 
-    printf("Weight: %d grams\n", rounded_weight);
+    // printf("Weight: %d grams\n", rounded_weight);
 
-    if (previous_weight == -1 || abs(rounded_weight - previous_weight) >= 5) {
+     if (previous_weight == -1 || abs(rounded_weight - previous_weight) >= 5) {
         // Prepare the message to send the weight to the MQTT broker
         char weight_message[128];
 
@@ -322,9 +329,9 @@ int main() {
 
         // Update the previous weight to the current rounded weight
         previous_weight = rounded_weight;
-    }
+     }
 
-    sleep_ms(1000);  // Wait for a bit before the next reading
+    sleep_ms(5000);  // Wait for a bit before the next reading
 }
 
     // Free memory and deinitialize Wi-Fi
