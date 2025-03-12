@@ -8,46 +8,51 @@
 /* Wi-Fi & MQTT  Settings */
 const char* ssid = "SSID";
 const char* password = "password";
-const char* mqtt_server = "broker.hivemq.com"; // Use your MQTT broker
+const char* mqtt_server = "broker.hivemq.com"; 
 
 /* Bluetooth Structure */
 #define SCAN_TIME 5
-#define PHONE_BLUETOOTH_NAME "JL"
+#define TARGET_PHONE_BLUETOOTH_NAME "JL" // change accordingly
 BLEScan* pBLEScan;
 int minimumDeviceThreshold = -60;
 bool phoneDetected = false; 
 
 
 /** Mesh Identification **/
-#define   MESH_SSID       "csc2106meshy"
-#define   MESH_PASSWORD   "meshpotatoes"
+#define   MESH_SSID       "medicationadherence"
+#define   MESH_PASSWORD   "medicationadherencepassword"
 #define   MESH_PORT       3000
 
 /** Structure for Message **/
 #define MAX_HEAP_SIZE 10  
-#define MAX_MESSAGE_LENGTH 50
 #define MAX_CHECKSUM_LENGTH 20
-#define sourceID 1 
-#define broadCastID 255
+#define MAX_MESSAGE_LENGTH 30
 
-struct Message {
+#define DETECT_PHONE 1
+#define SAVE_DATA 2 
+#define PHONE_DETECTED 3
+#define PHONE_NOT_DETECTED 4
+#define CLEAR_DATA 5
+
+struct messageBuffer {
   int id;
   int priority; 
-  char message[MAX_MESSAGE_LENGTH];
+  int messageType;
   char checksum[MAX_CHECKSUM_LENGTH];
-  int destinationId;
-} messageBuffer;
+  char medicationType[MAX_MESSAGE_LENGTH];
+};
 
-
-// messageBuffer heap[MAX_HEAP_SIZE];
-// int heapSize = 0;
+messageBuffer heap[MAX_HEAP_SIZE];
+int heapSize = 0;
 
 /* General Setup */
+#define MAX_ATTEMPTS 2
+
 unsigned long nextMedicationTime = 0;
 int durationSec = 20; 
+int attempts = 0;
 
 /** Function Prototypes **/
-void turnOnLEDandBuzzer();
 void sendMeshMessage();
 void receivedmeshCallback(uint32_t from, String &msg);
 void newConnectionCallback(uint32_t nodeId);
@@ -56,6 +61,7 @@ void nodeTimeAdjustedCallback(int32_t offset);
 void delayReceivedCallback(uint32_t from, int32_t delay);
 void handle_buzzer_on();
 void handle_buzzer_off();
+void printMessages(int attempts);
 
 /**Base Setup for Scheduler, Mesh and MQTT**/
 Scheduler userScheduler;
@@ -67,12 +73,21 @@ PubSubClient client(espClient);
 // Bluetooth Class
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks{
   void onResult(BLEAdvertisedDevice advertisedDevice){
-    int rssi = advertisedDevice.getRSSI();
-    if(rssi > minimumDeviceThreshold){
+    Serial.printf("Found device: %s\n", advertisedDevice.getName().c_str());
+    Serial.printf("advertised Name: %s\n",advertisedDevice.haveName());
+
+    if(advertisedDevice.getName() == TARGET_PHONE_BLUETOOTH_NAME){
       phoneDetected = true;
-    }else {
-      phoneDetected = false;
+    }else{
+      phoneDetected=false;
     }
+
+    // int rssi = advertisedDevice.getRSSI();
+    // if(rssi > minimumDeviceThreshold){
+    //   phoneDetected = true;
+    // }else {
+    //   phoneDetected = false;
+    // }
   }
 };
 
@@ -101,45 +116,73 @@ void setup() {
   //WiFi.begin(ssid,password);
 
   /* Mesh Setup */
-  // mesh.setDebugMsgTypes(ERROR | DEBUG); 
+  mesh.setDebugMsgTypes(ERROR | DEBUG); 
 
-  // mesh.init(MESH_SSID, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  mesh.init(MESH_SSID, MESH_PASSWORD, &userScheduler, MESH_PORT);
   // mesh.onReceive(&receivedCallback);
   // mesh.onNewConnection(&newConnectionCallback);
-  // mesh.onChangedConnections(&changedConnectionCallback);
-  // mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-  // mesh.onNodeDelayReceived(&delayReceivedCallback);
 
   /* Bluetooth setup */
-
   BLEDevice::init("");
   pBLEScan = BLEDevice::getScan(); 
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setActiveScan(true); 
 
   nextMedicationTime = millis();
-
 }
 
 void loop() {
-  // mesh.update();
-
-  BLEScanResults foundDevices = pBLEScan->start(SCAN_TIME);
+  mesh.update();
 
   unsigned long elapsedTime = millis() - nextMedicationTime;
 
-  if (phoneDetected && elapsedTime >= durationSec) {
-    handle_buzzer_on();
-    nextMedicationTime = millis();
-  }
+  if(elapsedTime >= durationSec){
+
+    while(attempts <= MAX_ATTEMPTS){
+
+      pBLEScan->start(SCAN_TIME);
+      
+      if (phoneDetected) {
+        handle_buzzer_on();
+        nextMedicationTime = millis();
+        // maybe send an MQTT message here?
+      
+        attempts = 0;
+        break;
+      }
+
+      printMessages(attempts);
+
+      attempts++;
+      delay(1000);
+    }
+  }  
 
   if (digitalRead(M5_BUTTON_HOME) == LOW) {
     handle_buzzer_off();
     while(digitalRead(M5_BUTTON_HOME) == LOW);
   }
 
-  delay(1000);
+  if(attempts >= MAX_ATTEMPTS){
+    //broadcast an mesh message here 
+    Serial.println("MAX_ATTEMPTS MAX");
+    attempts = 0;  
+  }
+}
 
+void printMessages(int attempts){
+  Serial.printf("Attempts #%d: Failed\n", (attempts+1));
+
+  if (attempts == 0){
+    M5.Lcd.setRotation(3);
+    M5.Lcd.fillScreen(BLACK);
+  }
+
+  int position = attempts * 20;
+
+  M5.Lcd.setCursor(0, (attempts * 20), 2);
+  M5.Lcd.printf("Attempt #%d: Failed", (attempts+1));
+  M5.update();
 }
 
 
@@ -161,18 +204,9 @@ void handle_buzzer_off(){
 void sendMeshMessage() {
 }
 
-
 void receivedmeshCallback(uint32_t from, String &msg) {
 }
 
 void newConnectionCallback(uint32_t nodeId) {
 }
 
-void changedConnectionCallback() {
-}
-
-void nodeTimeAdjustedCallback(int32_t offset) {
-}
-
-void delayReceivedCallback(uint32_t from, int32_t delay) {
-}
