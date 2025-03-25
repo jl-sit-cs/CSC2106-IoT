@@ -22,7 +22,6 @@
 #define DEBUG_printf printf
 
 // MQTT server configuration
-#define MQTT_SERVER_HOST ""  // Replace with your laptop's IP
 #define MQTT_SERVER_PORT 1883
 #define MQTT_TLS 1
 #define MQTT_CLIENT_ID "PicoW"
@@ -33,12 +32,27 @@
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
 
+#define WEIGHT_THRESHOLD 5         // Minimum weight change to consider significant
+#define MIN_PICKUP_DURATION 5000   // Minimum pickup duration in milliseconds (5 seconds)
+#define MAX_PICKUP_DURATION 30000  // Maximum pickup duration in milliseconds (30 seconds)
+#define RETURN_THRESHOLD 20        // Weight threshold for returning the bottle
+
+
 typedef struct MQTT_CLIENT_T_ {
     ip_addr_t remote_addr;
     mqtt_client_t *mqtt_client;
     u32_t received;
     u32_t counter;
 } MQTT_CLIENT_T;
+
+typedef struct {
+    int initial_weight;
+    int previous_weight;
+    uint32_t pickup_start_time;
+    bool is_picked_up;
+    bool medication_taken_reported;
+    bool is_start;
+} MedicationTracker;
 
 err_t mqtt_test_publish(MQTT_CLIENT_T *state);
 err_t mqtt_test_connect(MQTT_CLIENT_T *state);
@@ -54,6 +68,73 @@ static MQTT_CLIENT_T* mqtt_client_init(void) {
     state->counter = 0;
     return state;
 }
+
+void init_medication_tracker(MedicationTracker *tracker, int initial_weight) {
+    tracker->initial_weight = initial_weight;
+    tracker->previous_weight = initial_weight;
+    tracker->pickup_start_time = 0;
+    tracker->is_picked_up = false;
+    tracker->medication_taken_reported = false;
+    tracker->is_start = true;
+}
+
+bool detect_medication_taking(MedicationTracker *tracker, int current_weight, uint32_t current_time) {
+    int weight_change = abs(current_weight - tracker->previous_weight);
+
+    if (tracker->is_start) {
+        tracker->is_start = false;
+        return false;
+    }
+    
+    // Bottle picked up (weight drops significantly)
+    if (!tracker->is_picked_up && current_weight < (tracker->initial_weight - WEIGHT_THRESHOLD)) {
+        tracker->pickup_start_time = current_time;
+        tracker->is_picked_up = true;
+        tracker->medication_taken_reported = false;
+        DEBUG_printf("Bottle picked up. Initial weight: %d, Current weight: %d\n", 
+                     tracker->initial_weight, current_weight);
+        return false;
+    }
+    
+    // Check if bottle is picked up and not yet reported
+    if (tracker->is_picked_up && !tracker->medication_taken_reported) {
+        // Check pickup duration
+        if (current_time - tracker->pickup_start_time >= MIN_PICKUP_DURATION && 
+            current_time - tracker->pickup_start_time <= MAX_PICKUP_DURATION) {
+            // Mark medication as taken
+            tracker->medication_taken_reported = true;
+            DEBUG_printf("Medication likely taken. Pickup duration: %d ms\n", 
+                         current_time - tracker->pickup_start_time);
+            return true;
+        }
+        
+        // Timeout for pickup
+        if (current_time - tracker->pickup_start_time > MAX_PICKUP_DURATION) {
+            // Reset tracker if pickup is too long
+            tracker->is_picked_up = false;
+            tracker->pickup_start_time = 0;
+        }
+    }
+    
+    // Bottle returned (weight increases back close to initial weight)
+    if (tracker->is_picked_up && 
+        current_weight >= (tracker->initial_weight - RETURN_THRESHOLD) && 
+        current_weight <= (tracker->initial_weight + RETURN_THRESHOLD)) {
+        DEBUG_printf("Bottle returned. Initial weight: %d, Current weight: %d\n", 
+                     tracker->initial_weight, current_weight);
+        
+        // Reset tracker
+        tracker->is_picked_up = false;
+        tracker->pickup_start_time = 0;
+        tracker->initial_weight = current_weight;  // Update initial weight
+    }
+    
+    // Update previous weight
+    tracker->previous_weight = current_weight;
+    
+    return false;
+}
+
 
 // Set static IP for local MQTT broker
 void set_mqtt_server_ip(MQTT_CLIENT_T *state) {
@@ -298,42 +379,45 @@ int main() {
 
    printf("HX711 Initialized!\n");
 
-   int previous_weight = -1;
+    // Initialize medication tracker
+    MedicationTracker medication_tracker;
+    int32_t initial_raw_value = hx711_read();
+    float initial_weight = (float)(initial_raw_value - zero_offset) / CALIBRATION_FACTOR;
+    init_medication_tracker(&medication_tracker, (int)round(initial_weight));
 
-   while (1) {
-    int32_t raw_value = hx711_read();
+    while (1) {
+        // Get current time
+        uint32_t current_time = to_ms_since_boot(get_absolute_time());
 
-    // Subtract the zero offset and apply the calibration factor
-    float weight = (float)(raw_value - zero_offset) / CALIBRATION_FACTOR;
+        // Read current weight
+        int32_t raw_value = hx711_read();
+        float weight = (float)(raw_value - zero_offset) / CALIBRATION_FACTOR;
+        int rounded_weight = (int)round(weight);
 
-    int rounded_weight = (int)round(weight);
+        // Detect medication taking
+        bool medication_taken = detect_medication_taking(&medication_tracker, rounded_weight, current_time);
 
-    // printf("Weight: %d grams\n", rounded_weight);
+        // Publish medication status if taken
+        if (medication_taken) {
+            char medication_taken_message[128];
+            sprintf(medication_taken_message, "medication_taken");
+            
+            cyw43_arch_lwip_begin();
+            err_t err = mqtt_publish(state->mqtt_client, "medication_adherence/medication", 
+                                     medication_taken_message, strlen(medication_taken_message), 
+                                     0, 0, mqtt_pub_request_cb, state);
+            cyw43_arch_lwip_end();
 
-     if (previous_weight == -1 || abs(rounded_weight - previous_weight) >= 5) {
-        // Prepare the message to send the weight to the MQTT broker
-        char weight_message[128];
-
-        sprintf(weight_message, "{\"weight\":%d}", abs(rounded_weight - previous_weight));
-
-        // Publish the weight value to the MQTT broker
-        cyw43_arch_lwip_begin();
-        err_t err = mqtt_publish(state->mqtt_client, "pico_w/weight", weight_message, strlen(weight_message), 0, 0, mqtt_pub_request_cb, state);
-        cyw43_arch_lwip_end();
-
-        if (err != ERR_OK) {
-            DEBUG_printf("Failed to publish weight: err %d\n", err);
-        } else {
-            DEBUG_printf("Weight %d grams published successfully.\n", rounded_weight);
+            if (err != ERR_OK) {
+                DEBUG_printf("Failed to publish medication taken status\n");
+            } else {
+                DEBUG_printf("Medication taken status published\n");
+            }
         }
 
-        // Update the previous weight to the current rounded weight
-        previous_weight = rounded_weight;
-     }
-
-    sleep_ms(5000);  // Wait for a bit before the next reading
-}
-
+        sleep_ms(1000);  // Reduced sleep time for more responsive tracking
+    }
+    
     // Free memory and deinitialize Wi-Fi
     free(state);
     cyw43_arch_deinit();
