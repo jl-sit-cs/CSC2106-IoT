@@ -400,27 +400,23 @@ int main() {
 
         // Publish medication status if taken
         if (medication_taken) {
-            char medication_message[128];
+
             char weight_message[128];
             int weight_difference = medication_tracker.initial_weight - rounded_weight;
             
-            sprintf(medication_message, "medication_taken");
-            sprintf(weight_message, "{\"weight\":%d, \"weight_change\":%d}", 
+            sprintf(weight_message, "{\"status\":\"medication_taken\", \"weight\":%d, \"weight_change\":%d}", 
                 rounded_weight, weight_difference);
 
             
             cyw43_arch_lwip_begin();
-            err_t err_noti = mqtt_publish(state->mqtt_client, "medication_adherence/medication", 
-                                     medication_message, strlen(medication_message), 
-                                     0, 0, mqtt_pub_request_cb, state);
 
-            err_t err_weight = mqtt_publish(state->mqtt_client, "medication_weight", 
+            err_t err = mqtt_publish(state->mqtt_client, "medication_weight", 
                                     weight_message, strlen(weight_message), 
                                         0, 0, mqtt_pub_request_cb, state);
             cyw43_arch_lwip_end();
             
 
-            if (err_noti != ERR_OK || err_weight != ERR_OK) {
+            if (err != ERR_OK) {
                 DEBUG_printf("Failed to publish medication status or weight\n");
             } else {
                 DEBUG_printf("Medication taken status published\n");
