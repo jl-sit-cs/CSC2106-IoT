@@ -399,14 +399,18 @@ int main() {
 
         // Publish medication status if taken
         if (medication_taken) {
-            char medication_taken_message[128];
-            sprintf(medication_taken_message, "medication_taken");
+            char medication_message[128];
+            int weight_difference = medication_tracker.initial_weight - rounded_weight;
+            
+            sprintf(medication_message, "{\"status\":\"medication_taken\", \"current_weight\":%d, \"weight_difference\":%d}", 
+                    rounded_weight, weight_difference);
             
             cyw43_arch_lwip_begin();
             err_t err = mqtt_publish(state->mqtt_client, "medication_adherence/medication", 
-                                     medication_taken_message, strlen(medication_taken_message), 
+                                     medication_message, strlen(medication_message), 
                                      0, 0, mqtt_pub_request_cb, state);
             cyw43_arch_lwip_end();
+            
 
             if (err != ERR_OK) {
                 DEBUG_printf("Failed to publish medication taken status\n");
