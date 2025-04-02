@@ -83,6 +83,7 @@ bool detect_medication_taking(MedicationTracker *tracker, int current_weight, ui
 
     if (tracker->is_start) {
         tracker->is_start = false;
+        tracker->previous_weight = current_weight;
         return false;
     }
     
