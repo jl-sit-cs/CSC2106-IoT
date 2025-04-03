@@ -402,13 +402,13 @@ int main() {
         
         // DEBUG_printf("rounded_weight: %d\n", rounded_weight);
         // Detect medication taking
-        bool medication_taken = detect_medication_taking(&medication_tracker, rounded_weight, current_time);
+        bool medication_taken = detect_medication_taking(&medication_tracker,  abs(rounded_weight), current_time);
 
         // Publish medication status if taken
         if (medication_taken) {
 
             char weight_message[128];
-            int weight_difference = medication_tracker.initial_weight - rounded_weight;
+            int weight_difference = abs(medication_tracker.previous_weight) - abs(rounded_weight);
             
             sprintf(weight_message, "{\"status\":\"medication_taken\", \"weight\":%d, \"weight_change\":%d}", 
                 abs(rounded_weight), abs(weight_difference));
