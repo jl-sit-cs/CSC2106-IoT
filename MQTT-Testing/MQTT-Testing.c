@@ -34,7 +34,7 @@
 
 #define WEIGHT_THRESHOLD 5         // Minimum weight change to consider significant
 #define MIN_PICKUP_DURATION 5000   // Minimum pickup duration in milliseconds (5 seconds)
-#define MAX_PICKUP_DURATION 30000  // Maximum pickup duration in milliseconds (30 seconds)
+#define MAX_PICKUP_DURATION 60000  // Maximum pickup duration in milliseconds (60 seconds)
 #define RETURN_THRESHOLD 20        // Weight threshold for returning the bottle
 
 
