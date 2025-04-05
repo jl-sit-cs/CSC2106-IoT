@@ -26,11 +26,11 @@
 #define MQTT_TLS 1
 #define MQTT_CLIENT_ID "PicoW"
 #define MQTT_USER "admin" //Replace with the dashboard pass
-#define MQTT_PASS "" //Replace with the dashboard pass
+#define MQTT_PASS "Qs2NZ3q6" //Replace with the dashboard pass
 
 // Wi-Fi configuration
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "JL"
+#define WIFI_PASSWORD "helloworld2024"
 
 #define WEIGHT_THRESHOLD 5         // Minimum weight change to consider significant
 #define MIN_PICKUP_DURATION 5000   // Minimum pickup duration in milliseconds (5 seconds)
@@ -124,15 +124,16 @@ bool detect_medication_taking(MedicationTracker *tracker, int current_weight, ui
     
     // Bottle returned (weight increases back close to initial weight)
     if (tracker->is_start && tracker->is_picked_up && 
-        current_weight >= (tracker->initial_weight - RETURN_THRESHOLD) && 
-        current_weight <= (tracker->initial_weight + RETURN_THRESHOLD)) {
+        current_weight >= (tracker->previous_weight - RETURN_THRESHOLD) && 
+        current_weight <= (tracker->previous_weight + RETURN_THRESHOLD)) {
         DEBUG_printf("Bottle returned. Initial weight: %d, Current weight: %d\n", 
                      tracker->initial_weight, current_weight);
         
         // Reset tracker
         tracker->is_picked_up = false;
         tracker->pickup_start_time = 0;
-        tracker->initial_weight = current_weight;  // Update initial weight
+        tracker->previous_weight = current_weight;  // Update initial weight
+        return true;
     }
     
     // Update previous weight
@@ -144,7 +145,7 @@ bool detect_medication_taking(MedicationTracker *tracker, int current_weight, ui
 
 // Set static IP for local MQTT broker
 void set_mqtt_server_ip(MQTT_CLIENT_T *state) {
-    IP4_ADDR(&state->remote_addr, 192, 168, 222, 136);  // Replace with your laptop's IP
+    IP4_ADDR(&state->remote_addr, 172, 20, 10, 13);  // Replace with your laptop's IP
 }
 
 
@@ -406,7 +407,6 @@ int main() {
 
         // Publish medication status if taken
         if (medication_taken) {
-
             char weight_message[128];
             int weight_difference = abs(medication_tracker.previous_weight) - abs(rounded_weight);
             
