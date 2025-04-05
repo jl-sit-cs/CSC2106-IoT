@@ -105,8 +105,8 @@ bool detect_medication_taking(MedicationTracker *tracker, int current_weight, ui
     // Check if bottle is picked up and not yet reported
     if (tracker->is_start && tracker->is_picked_up && !tracker->medication_taken_reported) {
         // Check pickup duration
-        if (current_time - tracker->pickup_start_time >= MIN_PICKUP_DURATION && 
-            current_time - tracker->pickup_start_time <= MAX_PICKUP_DURATION) {
+        if (
+            current_time - tracker->pickup_start_time >= MAX_PICKUP_DURATION) {
             // Mark medication as taken
             tracker->medication_taken_reported = true;
             DEBUG_printf("Medication likely taken. Pickup duration: %d ms\n", 
