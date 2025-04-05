@@ -26,17 +26,18 @@
 #define MQTT_TLS 1
 #define MQTT_CLIENT_ID "PicoW"
 #define MQTT_USER "admin" //Replace with the dashboard pass
-#define MQTT_PASS "" //Replace with the dashboard pass
+#define MQTT_PASS "Qs2NZ3q6" //Replace with the dashboard pass
 
 // Wi-Fi configuration
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "JL"
+#define WIFI_PASSWORD "helloworld2024"
 
-#define WEIGHT_THRESHOLD 5         // Minimum weight change to consider significant
-#define MIN_PICKUP_DURATION 5000   // Minimum pickup duration in milliseconds (5 seconds)
-#define MAX_PICKUP_DURATION 30000  // Maximum pickup duration in milliseconds (30 seconds)
+#define WEIGHT_THRESHOLD 20         // Minimum weight change to consider significant
+#define MIN_PICKUP_DURATION 10000   // Minimum pickup duration in milliseconds (5 seconds)
+#define MAX_PICKUP_DURATION 60000  // Maximum pickup duration in milliseconds (60 seconds)
 #define RETURN_THRESHOLD 20        // Weight threshold for returning the bottle
 
+int weight_change = 0; // Global variable to store weight change
 
 typedef struct MQTT_CLIENT_T_ {
     ip_addr_t remote_addr;
@@ -80,71 +81,62 @@ void init_medication_tracker(MedicationTracker *tracker, int initial_weight) {
 
 bool detect_medication_taking(MedicationTracker *tracker, int current_weight, uint32_t current_time) 
 {
-    int weight_change = abs(current_weight - tracker->previous_weight);
+    weight_change = abs(current_weight - tracker->previous_weight);
 
+    // Step 1: Bottle placed on the tracker
     if (!tracker->is_start && weight_change > WEIGHT_THRESHOLD) {
         tracker->is_start = true;
-        tracker->initial_weight = current_weight;  // Set initial weight
-        tracker->previous_weight = current_weight; // Update previous weight
+        tracker->initial_weight = current_weight;
+        tracker->previous_weight = current_weight;
         DEBUG_printf("Bottle Placed\n");
         return false;
     }
-    
-    // Bottle picked up (weight drops significantly)
+
+    // Step 2: Bottle picked up
     if (tracker->is_start && !tracker->is_picked_up && 
-        weight_change > WEIGHT_THRESHOLD)
+        current_weight < 1) 
     {
         tracker->pickup_start_time = current_time;
         tracker->is_picked_up = true;
         tracker->medication_taken_reported = false;
-        DEBUG_printf("Bottle picked up. Initial weight: %d, Current weight: %d\n", 
-                     tracker->initial_weight, current_weight);
+        DEBUG_printf("Bottle picked up. Initial weight: %d, Current weight: %d\n", tracker->initial_weight, current_weight);
         return false;
     }
-    
-    // Check if bottle is picked up and not yet reported
+
+    // Step 3: Check for medication taken
     if (tracker->is_start && tracker->is_picked_up && !tracker->medication_taken_reported) {
-        // Check pickup duration
-        if (current_time - tracker->pickup_start_time >= MIN_PICKUP_DURATION && 
-            current_time - tracker->pickup_start_time <= MAX_PICKUP_DURATION) {
-            // Mark medication as taken
+        uint32_t duration = current_time - tracker->pickup_start_time;
+        if (duration >= MAX_PICKUP_DURATION) {
             tracker->medication_taken_reported = true;
-            DEBUG_printf("Medication likely taken. Pickup duration: %d ms\n", 
-                         current_time - tracker->pickup_start_time);
+            tracker->is_picked_up = false;
+            DEBUG_printf("Medication likely taken. Duration: %d ms\n", duration);
             return true;
         }
-        
-        // Timeout for pickup
-        if (current_time - tracker->pickup_start_time > MAX_PICKUP_DURATION) {
-            // Reset tracker if pickup is too long
-            tracker->is_picked_up = false;
-            tracker->pickup_start_time = 0;
-        }
     }
-    
-    // Bottle returned (weight increases back close to initial weight)
+
+    // Step 4: Bottle returned (regardless of report status)
     if (tracker->is_start && tracker->is_picked_up && 
-        current_weight >= (tracker->initial_weight - RETURN_THRESHOLD) && 
-        current_weight <= (tracker->initial_weight + RETURN_THRESHOLD)) {
-        DEBUG_printf("Bottle returned. Initial weight: %d, Current weight: %d\n", 
-                     tracker->initial_weight, current_weight);
-        
+        weight_change >= RETURN_THRESHOLD && 
+        (current_time - tracker->pickup_start_time) >= MIN_PICKUP_DURATION)
+    
+    {
+        DEBUG_printf("Bottle returned. Initial: %d, Current: %d, Δ: %d\n", 
+                     tracker->initial_weight, current_weight, abs(current_weight - tracker->previous_weight));
+
         // Reset tracker
         tracker->is_picked_up = false;
-        tracker->pickup_start_time = 0;
-        tracker->initial_weight = current_weight;  // Update initial weight
+
+        return true; // Return true if meds were actually taken
     }
-    
-    // Update previous weight
-    tracker->previous_weight = current_weight;
-    
+
     return false;
 }
 
 
+
 // Set static IP for local MQTT broker
 void set_mqtt_server_ip(MQTT_CLIENT_T *state) {
-    IP4_ADDR(&state->remote_addr, 192, 168, 222, 136);  // Replace with your laptop's IP
+    IP4_ADDR(&state->remote_addr, 172, 20, 10, 13);  // Replace with your laptop's IP
 }
 
 
@@ -406,13 +398,14 @@ int main() {
 
         // Publish medication status if taken
         if (medication_taken) {
-
             char weight_message[128];
-            int weight_difference = abs(medication_tracker.previous_weight) - abs(rounded_weight);
+            medication_tracker.previous_weight = abs(rounded_weight);
             
             sprintf(weight_message, "{\"status\":\"medication_taken\", \"weight\":%d, \"weight_change\":%d}", 
-                abs(rounded_weight), abs(weight_difference));
-
+                abs(rounded_weight), abs(weight_change));
+            
+            printf("Weight: %d\n", abs(rounded_weight));
+            printf("Weight Change: %d\n", abs(weight_change));
             cyw43_arch_lwip_begin();
 
             err_t err = mqtt_publish(state->mqtt_client, "medication_adherence/medication_weight", 
