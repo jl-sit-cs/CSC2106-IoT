@@ -11,8 +11,8 @@ uint8_t broadcastAddress[] = {0x4C, 0x75, 0x25, 0xCB, 0x98, 0x84};
 esp_now_peer_info_t peerInfo;
 
 /* Wi-Fi & MQTT  Settings */
-const char* WIFI_SSID        = "JL";
-const char* WIFI_PASSWORD    = "helloworld2024";
+const char* WIFI_SSID        = "";
+const char* WIFI_PASSWORD    = "";
 const char* mqtt_server = "172.20.10.4";
 
 /* Bluetooth Structure */
