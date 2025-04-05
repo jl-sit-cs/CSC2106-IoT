@@ -29,11 +29,13 @@ Our solution aims to:
      ```bash
      git clone https://github.com/jl-sit-cs/CSC2106-IoT.git
      ```
+   - Edit the files to include your WiFi's SSID and Password
    - Upload the code to your ESP32 devices using the Arduino IDE.
 3. ** Pressure Weight Sensor Setup: **
-    - To be added 
-
-
+    - Connect HX711 Pressure Sesnor to your Pico W
+    - Build the file using the Pico W Visual Studio Code, with your WiFi SSID and Password
+    - Upload the .uf2 file to your pico W
+    - Wait for the Pressure sensor to finish initializing before putting the medication on it
 
 ## How it works
 1. Client ESP32
