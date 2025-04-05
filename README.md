@@ -31,7 +31,7 @@ Our solution aims to:
      ```
    - Edit the files to include your WiFi's SSID and Password
    - Upload the code to your ESP32 devices using the Arduino IDE.
-3. ** Pressure Weight Sensor Setup: **
+3. **Pressure Weight Sensor Setup:**
     - Connect HX711 Pressure Sesnor to your Pico W
     - Build the file using the Pico W Visual Studio Code, with your WiFi SSID and Password
     - Upload the .uf2 file to your pico W
@@ -77,6 +77,7 @@ This project is licensed under the MIT License, see the full MIT License text at
 ## Contact Us 
 If you have any questions, suggestions, or feedback, feel free to reach out to us!
 - Email: 2301075@sit.singaporetech.edu.sg
+  
 We'd love to hear from you!
 
 
